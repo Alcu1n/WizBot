@@ -43,12 +43,14 @@ class WizChat_Admin {
      * 添加管理菜单
      */
     public function add_admin_menu() {
-        add_options_page(
+        add_menu_page(
             'WizChat设置',        // 页面标题
-            'WizChat设置',        // 菜单标题
+            'WizChat',           // 菜单标题
             'manage_options',     // 权限
             'wizchat-settings',   // 菜单别名
-            array($this, 'display_settings_page') // 回调函数
+            array($this, 'display_settings_page'), // 回调函数
+            'dashicons-format-chat', // 图标
+            30 // 位置
         );
     }
 
@@ -236,7 +238,7 @@ class WizChat_Admin {
     }
 
     /**
-     * 向量搜索字段回调
+     * 启用向量搜索字段回调
      */
     public function enable_vector_search_field_callback() {
         $enabled = isset($this->settings['enable_vector_search']) ? $this->settings['enable_vector_search'] : 'no';
@@ -321,8 +323,10 @@ class WizChat_Admin {
                 
                 <h2>验证API连接</h2>
                 <p>点击下面的按钮测试您的API配置是否正确</p>
-                <button type="button" id="wizchat-test-api" class="button button-secondary">测试API连接</button>
-                <span id="wizchat-api-test-result" style="margin-left: 10px;"></span>
+                <div class="wizchat-api-test" style="margin-bottom: 20px;">
+                    <button type="button" id="wizchat-test-api" class="button button-secondary">测试API连接</button>
+                    <span id="wizchat-api-test-result" style="margin-left: 10px; display: inline-block; min-height: 30px; padding: 5px 0;"></span>
+                </div>
             </form>
         </div>
         <?php
@@ -334,7 +338,8 @@ class WizChat_Admin {
      * @param string $hook_suffix 当前管理页面的钩子后缀
      */
     public function enqueue_admin_scripts($hook_suffix) {
-        if ($hook_suffix !== 'settings_page_wizchat-settings') {
+        // 由于我们已将菜单从settings移到了顶级菜单，钩子名称变更为toplevel_page_wizchat-settings
+        if ($hook_suffix !== 'settings_page_wizchat-settings' && $hook_suffix !== 'toplevel_page_wizchat-settings') {
             return;
         }
         

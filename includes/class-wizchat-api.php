@@ -121,18 +121,11 @@ class WizChat_API {
             $error_type = isset($response['error']['type']) ? $response['error']['type'] : '未知';
             $error_code = isset($response['error']['code']) ? $response['error']['code'] : '';
             
-            $this->log_debug('API错误响应', array(
-                'message' => $error_message,
-                'type' => $error_type,
-                'code' => $error_code
-            ));
-            
             throw new Exception('API错误: ' . $error_message);
         }
 
         if (!isset($response['choices'][0]['message']['content'])) {
-            $this->log_debug('无效的API响应格式', $response);
-            throw new Exception('无效的API响应: 缺少内容字段');
+            throw new Exception('无效的API响应格式: 缺少内容字段');
         }
 
         return array(
@@ -163,20 +156,9 @@ class WizChat_API {
             'data_format' => 'body',
         );
 
-        // 添加调试日志
-        $this->log_debug('API请求', array(
-            'url' => $api_url,
-            'endpoint' => $endpoint,
-            'model' => isset($data['model']) ? $data['model'] : 'N/A',
-        ));
-
         $response = wp_remote_request($api_url, $args);
 
         if (is_wp_error($response)) {
-            $this->log_debug('API请求失败', array(
-                'error' => $response->get_error_message(),
-                'code' => $response->get_error_code(),
-            ));
             throw new Exception('API请求失败: ' . $response->get_error_message());
         }
 
@@ -184,13 +166,6 @@ class WizChat_API {
         $status = wp_remote_retrieve_response_code($response);
 
         if ($status < 200 || $status >= 300) {
-            $this->log_debug('API请求返回非200状态码', array(
-                'status' => $status,
-                'body' => $body,
-                'headers' => wp_remote_retrieve_headers($response),
-            ));
-            
-            // 尝试从响应中获取更详细的错误信息
             $error_message = '状态码: ' . $status;
             $decoded_body = json_decode($body, true);
             
@@ -204,16 +179,8 @@ class WizChat_API {
         $decoded_body = json_decode($body, true);
 
         if (json_last_error() !== JSON_ERROR_NONE) {
-            $this->log_debug('API响应JSON解析失败', array(
-                'error' => json_last_error_msg(),
-                'body' => substr($body, 0, 1000), // 记录部分响应内容，避免日志过大
-            ));
             throw new Exception('无法解析API响应: ' . json_last_error_msg());
         }
-
-        $this->log_debug('API响应成功', array(
-            'status' => $status,
-        ));
 
         return $decoded_body;
     }
@@ -221,40 +188,97 @@ class WizChat_API {
     /**
      * 测试API连接
      *
-     * @return bool 连接是否成功
-     * @throws Exception 如果连接失败
+     * @return array 包含连接测试结果的数组
      */
     public function test_connection() {
-        // 检查API密钥是否设置
+        // 检查API密钥是否为空
         if (empty($this->settings['api_key'])) {
-            throw new Exception('API密钥未设置');
+            return array(
+                'success' => false,
+                'message' => 'API密钥未设置'
+            );
         }
-
-        // 发送简单的聊天完成请求来测试连接
-        // 使用经典的"Hello, World"测试OpenAI API模型
+        
         try {
-            $test_data = array(
+            // 构建测试请求参数
+            $endpoint = '/chat/completions';
+            $request_url = $this->settings['base_url'] . $endpoint;
+            
+            $request_body = array(
                 'model' => $this->settings['model'],
                 'messages' => array(
                     array(
                         'role' => 'user',
-                        'content' => 'Say "Hello, WizChat API test successful!"',
-                    ),
+                        'content' => 'Hello, this is a test message from WizChat plugin.'
+                    )
                 ),
-                'max_tokens' => 20,
+                'max_tokens' => 5, // 仅需要一个小的回复
+                'temperature' => 0.1 // 设置低温度以获得确定性回复
             );
             
-            $response = $this->make_api_request('chat/completions', $test_data);
+            $headers = array(
+                'Content-Type: application/json',
+                'Authorization: Bearer ' . $this->settings['api_key']
+            );
             
-            // 验证响应格式
-            if (!isset($response['choices'][0]['message']['content'])) {
-                throw new Exception('API响应格式无效，请检查API版本和权限');
+            // 初始化cURL
+            $ch = curl_init($request_url);
+            curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+            curl_setopt($ch, CURLOPT_POST, true);
+            curl_setopt($ch, CURLOPT_POSTFIELDS, wp_json_encode($request_body));
+            curl_setopt($ch, CURLOPT_HTTPHEADER, $headers);
+            curl_setopt($ch, CURLOPT_TIMEOUT, 30); // 超时设置为30秒
+            
+            // 执行请求并获取响应
+            $response = curl_exec($ch);
+            $http_status = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+            $curl_error = curl_error($ch);
+            
+            curl_close($ch);
+            
+            // 检查错误
+            if ($curl_error) {
+                return array(
+                    'success' => false,
+                    'message' => '网络错误: ' . $curl_error
+                );
             }
             
-            return true;
+            // 解析响应
+            $result = json_decode($response, true);
+            
+            // 检查HTTP状态码
+            if ($http_status >= 400) {
+                $error_message = isset($result['error']['message']) 
+                    ? $result['error']['message'] 
+                    : '服务器返回错误状态码: ' . $http_status;
+                
+                return array(
+                    'success' => false,
+                    'message' => $error_message
+                );
+            }
+            
+            // 验证响应格式
+            if (isset($result['choices']) && is_array($result['choices']) && !empty($result['choices'])) {
+                // 响应有效
+                $model_used = isset($result['model']) ? $result['model'] : $this->settings['model'];
+                
+                return array(
+                    'success' => true,
+                    'message' => '已成功连接到API，使用模型: ' . $model_used
+                );
+            } else {
+                return array(
+                    'success' => false,
+                    'message' => '收到响应但格式无效'
+                );
+            }
         } catch (Exception $e) {
-            // 重新抛出异常，但提供更友好的错误信息
-            throw new Exception('API连接测试失败: ' . $e->getMessage());
+            return array(
+                'success' => false,
+                'message' => '异常: ' . $e->getMessage()
+            );
         }
     }
 
@@ -265,10 +289,6 @@ class WizChat_API {
      * @param mixed $data 日志数据
      */
     private function log_debug($title, $data) {
-        if (!$this->debug) {
-            return;
-        }
-
         // 使用WordPress的错误日志功能记录调试信息
         error_log(sprintf(
             '[WizChat Debug] %s: %s',

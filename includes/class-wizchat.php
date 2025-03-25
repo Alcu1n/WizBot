@@ -97,12 +97,14 @@ class WizChat {
      * 注册REST API路由
      */
     public function register_routes() {
+        // 注册聊天端点
         register_rest_route('wizchat/v1', '/chat', array(
             'methods' => 'POST',
             'callback' => array($this, 'process_chat_request'),
             'permission_callback' => '__return_true', // 允许所有用户访问
         ));
         
+        // 注册API验证端点
         register_rest_route('wizchat/v1', '/verify-api', array(
             'methods' => 'POST',
             'callback' => array($this, 'verify_api_connection'),
@@ -144,34 +146,55 @@ class WizChat {
 
     /**
      * 验证API连接
-     *
-     * @param WP_REST_Request $request 请求对象
+     * 
+     * @param WP_REST_Request $request REST请求对象
      * @return WP_REST_Response
      */
     public function verify_api_connection($request) {
-        $api_key = sanitize_text_field($request->get_param('api_key'));
-        $base_url = esc_url_raw($request->get_param('base_url'));
-        $model = sanitize_text_field($request->get_param('model'));
+        // 获取请求参数
+        $params = $request->get_json_params();
         
-        $test_settings = array(
-            'api_key' => $api_key,
-            'base_url' => $base_url,
-            'model' => $model,
-        );
+        // 检查API密钥是否为空
+        if (empty($params) || empty($params['api_key'])) {
+            return rest_ensure_response(array(
+                'success' => false,
+                'message' => '请提供有效的API密钥'
+            ));
+        }
         
-        $api = new WizChat_API($test_settings);
+        // 获取参数
+        $api_key = sanitize_text_field($params['api_key']);
+        $base_url = isset($params['base_url']) ? sanitize_text_field($params['base_url']) : '';
+        $model = isset($params['model']) ? sanitize_text_field($params['model']) : 'gpt-3.5-turbo';
         
         try {
-            $is_valid = $api->test_connection();
-            return new WP_REST_Response(array(
-                'success' => true,
-                'message' => '连接成功，API配置有效。'
-            ), 200);
+            // 初始化API实例
+            $api = new WizChat_API(array(
+                'api_key' => $api_key,
+                'base_url' => $base_url,
+                'model' => $model
+            ));
+            
+            // 测试连接
+            $result = $api->test_connection();
+            
+            if ($result['success']) {
+                return rest_ensure_response(array(
+                    'success' => true,
+                    'message' => '连接成功: ' . $result['message']
+                ));
+            } else {
+                return rest_ensure_response(array(
+                    'success' => false,
+                    'message' => '连接失败: ' . $result['message']
+                ));
+            }
+            
         } catch (Exception $e) {
-            return new WP_REST_Response(array(
+            return rest_ensure_response(array(
                 'success' => false,
                 'message' => '连接失败: ' . $e->getMessage()
-            ), 200); // 仍然发送200但包含错误信息
+            ));
         }
     }
 

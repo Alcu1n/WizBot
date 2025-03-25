@@ -12,8 +12,6 @@
     function init() {
         // 绑定API测试按钮事件
         $('#wizchat-test-api').on('click', testApiConnection);
-        
-        console.log('WizChat管理界面已初始化');
     }
 
     /**
@@ -30,13 +28,13 @@
         
         // 检查API密钥是否设置
         if (!apiKey) {
-            $result.html('<span class="text-red-500">请先输入API密钥</span>');
+            $result.html('<span style="color: red;">请先输入API密钥</span>');
             return;
         }
         
         // 更新UI状态
         $button.prop('disabled', true).text('测试中...');
-        $result.html('<span class="text-blue-500">正在测试连接...</span>');
+        $result.html('<span style="color: blue;">正在测试连接...</span>');
         
         // 发送API测试请求
         $.ajax({
@@ -57,23 +55,28 @@
                 
                 // 显示测试结果
                 if (response.success) {
-                    $result.html(`<span class="text-green-500">${response.message}</span>`);
+                    $result.html(`<span style="color: green;">${response.message}</span>`);
                 } else {
-                    $result.html(`<span class="text-red-500">${response.message}</span>`);
+                    $result.html(`<span style="color: red;">${response.message}</span>`);
                 }
-                
-                // 输出调试信息
-                console.log('API测试响应:', response);
             },
             error: function(xhr, status, error) {
                 // 恢复按钮状态
                 $button.prop('disabled', false).text('测试API连接');
                 
                 // 显示错误信息
-                $result.html(`<span class="text-red-500">请求失败: ${status}</span>`);
+                let errorMessage = '请求失败: ' + status;
                 
-                // 输出调试信息
-                console.error('API测试请求失败:', error, xhr.responseText);
+                try {
+                    const response = JSON.parse(xhr.responseText);
+                    if (response && response.message) {
+                        errorMessage = response.message;
+                    }
+                } catch (e) {
+                    errorMessage = '无法解析错误响应';
+                }
+                
+                $result.html(`<span style="color: red;">${errorMessage}</span>`);
             }
         });
     }

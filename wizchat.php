@@ -69,18 +69,11 @@ register_deactivation_hook(__FILE__, 'wizchat_deactivate');
 function wizchat_load_classes() {
     // 包含所有核心类
     require_once WIZCHAT_PLUGIN_DIR . 'includes/class-wizchat.php';
-    require_once WIZCHAT_PLUGIN_DIR . 'includes/class-wizchat-admin.php';
-    require_once WIZCHAT_PLUGIN_DIR . 'includes/class-wizchat-public.php';
-    require_once WIZCHAT_PLUGIN_DIR . 'includes/class-wizchat-api.php';
     
     // 初始化主类
     $wizchat = WizChat::get_instance();
     
-    // 如果是管理界面，初始化管理类
-    if (is_admin()) {
-        $settings = get_option('wizchat_settings', array());
-        $admin = new WizChat_Admin($settings);
-    }
+    // 注意：Admin类已在WizChat::set_hooks()中初始化，这里不再重复初始化
 }
 
 // 使用WordPress的初始化钩子加载插件

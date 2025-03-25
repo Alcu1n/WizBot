@@ -7,7 +7,7 @@
     'use strict';
     
     // 缓存DOM元素
-    let $chat, $bubble, $window, $header, $messages, $input, $sendBtn, $typing;
+    let $chat, $bubble, $window, $header, $messages, $input, $sendBtn, $typing, $form, $error;
     
     // 聊天状态
     let isOpen = false;
@@ -18,20 +18,43 @@
      * 初始化聊天界面
      */
     function init() {
-        // 创建聊天元素
-        createChatElements();
+        // 缓存现有DOM元素
+        cacheElements();
         
         // 绑定事件
         bindEvents();
-        
-        // 调整位置
-        adjustChatWindowPosition();
         
         // 加载之前的对话
         loadConversation();
         
         // 应用主题色
         applyPrimaryColor();
+
+        console.log("WizChat初始化完成!");
+    }
+    
+    /**
+     * 缓存DOM元素
+     */
+    function cacheElements() {
+        $chat = $('#wizchat-container');
+        $bubble = $('#wizchat-bubble');
+        $window = $('#wizchat-chat-window');
+        $header = $window.find('.wizchat-header');
+        $messages = $('#wizchat-messages');
+        $input = $('#wizchat-message-input');
+        $form = $('#wizchat-message-form');
+        $sendBtn = $form.find('button[type="submit"]');
+        $typing = $('.wizchat-typing');
+        $error = $('#wizchat-error');
+
+        console.log("DOM元素缓存完成", {
+            chat: $chat.length > 0,
+            bubble: $bubble.length > 0,
+            window: $window.length > 0,
+            messages: $messages.length > 0,
+            form: $form.length > 0
+        });
     }
     
     /**
@@ -42,10 +65,13 @@
         $bubble.on('click', toggleChatWindow);
         
         // 关闭按钮点击事件
-        $header.find('.wizchat-close').on('click', closeChatWindow);
+        $('#wizchat-close').on('click', closeChatWindow);
         
-        // 发送按钮点击事件
-        $sendBtn.on('click', sendMessage);
+        // 发送按钮点击事件 - 使用表单提交事件
+        $form.on('submit', function(e) {
+            e.preventDefault();
+            sendMessage();
+        });
         
         // 输入框回车事件
         $input.on('keypress', function(e) {
@@ -55,7 +81,7 @@
             }
         });
         
-        // 窗口调整大小事件
+        // 窗口大小变化事件
         $(window).on('resize', adjustChatWindowPosition);
     }
     
@@ -63,6 +89,8 @@
      * 切换聊天窗口显示状态
      */
     function toggleChatWindow() {
+        console.log("切换聊天窗口");
+        
         if (isOpen) {
             closeChatWindow();
         } else {
@@ -74,8 +102,10 @@
      * 打开聊天窗口
      */
     function openChatWindow() {
+        console.log("打开聊天窗口");
+        
         if (!isOpen) {
-            $window.removeClass('hidden');
+            $window.removeClass('scale-0').addClass('scale-100');
             $bubble.addClass('hidden');
             isOpen = true;
             
@@ -91,21 +121,27 @@
      * 关闭聊天窗口
      */
     function closeChatWindow() {
-        $window.addClass('hidden');
-        $bubble.removeClass('hidden');
-        isOpen = false;
+        if (isOpen) {
+            $window.removeClass('scale-100').addClass('scale-0');
+            $bubble.removeClass('hidden');
+            isOpen = false;
+        }
     }
     
     /**
      * 调整聊天窗口位置
      */
     function adjustChatWindowPosition() {
-        if (wizchatSettings.bubblePosition === 'left') {
-            $bubble.addClass('wizchat-left').removeClass('wizchat-right');
-            $window.addClass('wizchat-left').removeClass('wizchat-right');
-        } else {
-            $bubble.addClass('wizchat-right').removeClass('wizchat-left');
-            $window.addClass('wizchat-right').removeClass('wizchat-left');
+        // 获取窗口尺寸
+        const windowWidth = $(window).width();
+        
+        if (windowWidth < 640) {
+            // 移动设备上窗口位置居中
+            $window.css({
+                'width': 'calc(100% - 32px)',
+                'left': '16px',
+                'right': 'auto'
+            });
         }
     }
     
@@ -115,17 +151,12 @@
     function sendMessage() {
         const message = $input.val().trim();
         
-        // 检查消息是否为空
-        if (!message) {
+        // 如果消息为空或正在发送中，则不处理
+        if (!message || isSending) {
             return;
         }
         
-        // 避免重复发送
-        if (isSending) {
-            return;
-        }
-        
-        // 设置发送状态
+        // 标记为发送中状态
         isSending = true;
         
         // 清空输入框
@@ -134,142 +165,75 @@
         // 添加用户消息到聊天窗口
         addUserMessage(message);
         
-        // 显示AI正在输入
+        // 保存消息到历史记录
+        conversationHistory.push({role: 'user', content: message});
+        
+        // 限制历史记录长度，避免超出token限制
+        if (conversationHistory.length > 10) {
+            // 保留最新的10条消息
+            conversationHistory = conversationHistory.slice(-10);
+        }
+        
+        // 显示AI正在输入指示器
         showTypingIndicator();
         
-        // 添加到对话历史
-        conversationHistory.push({
-            role: 'user',
-            content: message
-        });
-        
-        // 保存对话历史
-        saveConversation();
-        
-        // 准备发送数据
-        const requestData = {
-            message: message,
-            history: conversationHistory
-        };
-        
-        // 发送API请求
+        // 发送到API
         $.ajax({
             url: wizchatSettings.apiUrl,
             method: 'POST',
-            data: JSON.stringify(requestData),
-            contentType: 'application/json',
             beforeSend: function(xhr) {
                 xhr.setRequestHeader('X-WP-Nonce', wizchatSettings.nonce);
+            },
+            data: {
+                message: message,
+                history: conversationHistory
             },
             success: function(response) {
                 // 隐藏输入指示器
                 hideTypingIndicator();
                 
-                // 重置发送状态
-                isSending = false;
-                
-                // 添加AI响应到聊天窗口
                 if (response && response.message) {
+                    // 添加AI回复到聊天窗口
                     addAIMessage(response.message);
                     
-                    // 添加到对话历史
-                    conversationHistory.push({
-                        role: 'assistant',
-                        content: response.message
-                    });
+                    // 保存到历史记录
+                    conversationHistory.push({role: 'assistant', content: response.message});
                     
-                    // 保存对话历史
+                    // 保存对话到本地存储
                     saveConversation();
                 } else {
-                    showError('收到无效的响应');
+                    showError('接收到无效的响应');
                 }
+                
+                // 重置发送状态
+                isSending = false;
             },
             error: function(xhr, status, error) {
                 // 隐藏输入指示器
                 hideTypingIndicator();
                 
-                // 重置发送状态
-                isSending = false;
+                let errorMessage = '发送消息时出错';
                 
-                // 显示错误消息
-                let errorMessage = '请求失败';
-                
+                // 尝试解析响应中的错误信息
                 try {
                     const response = JSON.parse(xhr.responseText);
                     if (response && response.error) {
                         errorMessage = response.error;
                     }
                 } catch (e) {
-                    errorMessage = `请求失败: ${status || 'unknown'}`;
+                    console.error('解析错误响应失败', e);
                 }
                 
+                // 显示错误信息
                 showError(errorMessage);
-                console.error('API请求失败:', error, xhr.responseText);
+                
+                // 记录到控制台以便调试
+                console.error('API请求失败', {status, error, xhr});
+                
+                // 重置发送状态
+                isSending = false;
             }
         });
-    }
-    
-    /**
-     * 创建聊天界面元素
-     */
-    function createChatElements() {
-        // 如果元素已存在，则不重复创建
-        if (document.getElementById('wizchat-container')) {
-            return;
-        }
-        
-        // 创建聊天容器
-        const $container = $('<div id="wizchat-container"></div>');
-        $('body').append($container);
-        
-        // 创建聊天气泡
-        $bubble = $(
-            `<div class="wizchat-bubble-btn wizchat-primary-bg wizchat-shadow">
-                <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" />
-                </svg>
-            </div>`
-        );
-        
-        // 创建聊天窗口
-        $window = $(
-            `<div class="wizchat-window wizchat-shadow hidden">
-                <div class="wizchat-header wizchat-primary-bg">
-                    <div class="wizchat-title font-bold">WizChat 智能助手</div>
-                    <div class="wizchat-close">
-                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
-                        </svg>
-                    </div>
-                </div>
-                <div class="wizchat-messages"></div>
-                <div class="wizchat-typing hidden">
-                    <div class="wizchat-typing-dot"></div>
-                    <div class="wizchat-typing-dot"></div>
-                    <div class="wizchat-typing-dot"></div>
-                </div>
-                <div class="wizchat-input-area">
-                    <textarea class="wizchat-input" placeholder="输入您的问题..."></textarea>
-                    <button class="wizchat-send-btn wizchat-primary-bg">
-                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
-                        </svg>
-                    </button>
-                </div>
-            </div>`
-        );
-        
-        // 添加元素到容器
-        $container.append($bubble);
-        $container.append($window);
-        
-        // 缓存常用元素
-        $chat = $container;
-        $header = $window.find('.wizchat-header');
-        $messages = $window.find('.wizchat-messages');
-        $input = $window.find('.wizchat-input');
-        $sendBtn = $window.find('.wizchat-send-btn');
-        $typing = $window.find('.wizchat-typing');
     }
     
     /**
@@ -278,15 +242,15 @@
      * @param {string} message 用户消息内容
      */
     function addUserMessage(message) {
-        const $messageElement = $(`
-            <div class="wizchat-message wizchat-message-user flex items-start justify-end">
+        const messageHtml = `
+            <div class="wizchat-message wizchat-message-user flex items-end justify-end">
                 <div class="wizchat-bubble wizchat-primary-bg text-white rounded-lg p-3 max-w-[85%]">
                     <p>${escapeHtml(message)}</p>
                 </div>
             </div>
-        `);
+        `;
         
-        $messages.append($messageElement);
+        $messages.append(messageHtml);
         scrollToBottom();
     }
     
@@ -298,7 +262,7 @@
     function addAIMessage(message) {
         const formattedMessage = formatMessage(message);
         
-        const $messageElement = $(`
+        const messageHtml = `
             <div class="wizchat-message wizchat-message-ai flex items-start">
                 <div class="wizchat-avatar wizchat-primary-bg w-8 h-8 rounded-full flex items-center justify-center text-white mr-2 flex-shrink-0">
                     <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -309,9 +273,9 @@
                     ${formattedMessage}
                 </div>
             </div>
-        `);
+        `;
         
-        $messages.append($messageElement);
+        $messages.append(messageHtml);
         scrollToBottom();
     }
     
@@ -336,41 +300,33 @@
      * @param {string} message 错误消息
      */
     function showError(message) {
-        const $messageElement = $(`
-            <div class="wizchat-message wizchat-message-error flex items-start">
-                <div class="wizchat-bubble bg-red-100 text-red-700 rounded-lg p-3 max-w-[85%]">
-                    <p>❌ ${escapeHtml(message)}</p>
-                </div>
-            </div>
-        `);
+        $error.text(message).removeClass('hidden');
         
-        $messages.append($messageElement);
-        scrollToBottom();
+        // 5秒后自动隐藏错误消息
+        setTimeout(function() {
+            $error.addClass('hidden');
+        }, 5000);
     }
     
     /**
      * 滚动到最新消息
      */
     function scrollToBottom() {
-        if ($messages.length) {
-            $messages.scrollTop($messages[0].scrollHeight);
-        }
+        $messages.scrollTop($messages[0].scrollHeight);
     }
     
     /**
      * 应用主题色
      */
     function applyPrimaryColor() {
-        const primaryColor = wizchatSettings.primaryColor || '#4F46E5';
-        
-        // 添加内联样式
-        const style = document.createElement('style');
-        style.innerHTML = `
-            .wizchat-primary-bg { background-color: ${primaryColor} !important; }
-            .wizchat-primary-text { color: ${primaryColor} !important; }
-            .wizchat-primary-border { border-color: ${primaryColor} !important; }
-        `;
-        document.head.appendChild(style);
+        if (typeof wizchatSettings !== 'undefined' && wizchatSettings.primaryColor) {
+            const primaryColor = wizchatSettings.primaryColor;
+            
+            // 使用CSS变量设置主题色
+            document.documentElement.style.setProperty('--wizchat-primary-color', primaryColor);
+            
+            console.log('应用主题色:', primaryColor);
+        }
     }
     
     /**
@@ -380,25 +336,33 @@
      * @return {string} 格式化后的HTML
      */
     function formatMessage(message) {
+        if (!message) return '';
+        
         // 转义HTML
-        let html = escapeHtml(message);
+        let formatted = escapeHtml(message);
         
-        // 处理换行
-        html = html.replace(/\n/g, '<br>');
-        
-        // 处理链接
-        html = html.replace(
-            /(https?:\/\/[^\s<]+)/g, 
-            '<a href="$1" target="_blank" class="text-blue-600 hover:underline">$1</a>'
+        // 将URL转换为链接
+        formatted = formatted.replace(
+            /(https?:\/\/[^\s]+)/g, 
+            '<a href="$1" target="_blank" class="wizchat-primary-text underline">$1</a>'
         );
         
-        // 处理加粗文本 **加粗**
-        html = html.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
+        // 将**粗体**转换为<strong>
+        formatted = formatted.replace(
+            /\*\*(.*?)\*\*/g,
+            '<strong>$1</strong>'
+        );
         
-        // 处理斜体文本 *斜体*
-        html = html.replace(/\*(.*?)\*/g, '<em>$1</em>');
+        // 将*斜体*转换为<em>
+        formatted = formatted.replace(
+            /\*(.*?)\*/g,
+            '<em>$1</em>'
+        );
         
-        return html;
+        // 替换换行符为<br>
+        formatted = formatted.replace(/\n/g, '<br>');
+        
+        return formatted;
     }
     
     /**
@@ -417,20 +381,17 @@
      * 保存对话历史到本地存储
      */
     function saveConversation() {
-        // 限制历史记录长度，避免存储过大
-        if (conversationHistory.length > 50) {
-            // 保留最新的20条消息
-            conversationHistory = conversationHistory.slice(-20);
-        }
+        // 准备会话数据
+        const sessionData = {
+            messages: conversationHistory,
+            timestamp: new Date().getTime()
+        };
         
         try {
-            // 保存到本地存储
-            localStorage.setItem('wizchat_conversation', JSON.stringify({
-                timestamp: Date.now(),
-                history: conversationHistory
-            }));
+            // 保存到localStorage
+            localStorage.setItem('wizchat_conversation', JSON.stringify(sessionData));
         } catch (e) {
-            console.error('无法保存聊天历史:', e);
+            console.error('保存对话历史失败', e);
         }
     }
     
@@ -439,52 +400,52 @@
      */
     function loadConversation() {
         try {
-            // 从本地存储加载
-            const savedData = localStorage.getItem('wizchat_conversation');
+            // 从localStorage获取数据
+            const saved = localStorage.getItem('wizchat_conversation');
             
-            if (!savedData) {
-                // 没有保存的对话
-                return;
-            }
-            
-            const data = JSON.parse(savedData);
-            
-            // 检查会话是否过期
-            const sessionDuration = (wizchatSettings.sessionDuration || 24) * 60 * 60 * 1000; // 转换为毫秒
-            const now = Date.now();
-            
-            if (now - data.timestamp > sessionDuration) {
-                // 会话已过期，清除存储
-                localStorage.removeItem('wizchat_conversation');
-                return;
-            }
-            
-            // 恢复对话历史
-            conversationHistory = data.history || [];
-            
-            // 显示历史消息
-            if (conversationHistory.length > 0) {
-                // 添加分隔线
-                $messages.append('<div class="wizchat-history-separator text-center text-xs text-gray-500 my-2">--- 历史对话 ---</div>');
+            if (saved) {
+                const sessionData = JSON.parse(saved);
                 
-                // 显示最多10条历史消息
-                const recentHistory = conversationHistory.slice(-10);
+                // 检查会话是否过期
+                const now = new Date().getTime();
+                const sessionDuration = 24 * 60 * 60 * 1000; // 默认24小时
                 
-                recentHistory.forEach(entry => {
-                    if (entry.role === 'user') {
-                        addUserMessage(entry.content);
-                    } else if (entry.role === 'assistant') {
-                        addAIMessage(entry.content);
+                // 如果有设置会话持续时间，则使用设置值
+                if (typeof wizchatSettings !== 'undefined' && wizchatSettings.sessionDuration) {
+                    sessionDuration = parseInt(wizchatSettings.sessionDuration) * 60 * 60 * 1000;
+                }
+                
+                // 检查会话是否过期
+                if (now - sessionData.timestamp > sessionDuration) {
+                    // 会话已过期，清除存储
+                    localStorage.removeItem('wizchat_conversation');
+                    console.log('会话已过期，已清除存储');
+                    return;
+                }
+                
+                // 恢复历史记录
+                if (Array.isArray(sessionData.messages)) {
+                    conversationHistory = sessionData.messages;
+                    
+                    // 限制加载的消息数量，避免过多
+                    if (conversationHistory.length > 10) {
+                        conversationHistory = conversationHistory.slice(-10);
                     }
-                });
-                
-                // 添加当前会话分隔线
-                $messages.append('<div class="wizchat-history-separator text-center text-xs text-gray-500 my-2">--- 当前会话 ---</div>');
+                    
+                    // 在聊天界面显示历史消息
+                    conversationHistory.forEach(msg => {
+                        if (msg.role === 'user') {
+                            addUserMessage(msg.content);
+                        } else if (msg.role === 'assistant') {
+                            addAIMessage(msg.content);
+                        }
+                    });
+                    
+                    console.log('成功加载历史对话', conversationHistory.length);
+                }
             }
         } catch (e) {
-            console.error('加载聊天历史失败:', e);
-            // 出错时重置对话历史
-            conversationHistory = [];
+            console.error('加载对话历史失败', e);
         }
     }
     
