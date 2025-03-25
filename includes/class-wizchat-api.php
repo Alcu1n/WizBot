@@ -1,6 +1,6 @@
 <?php
 /**
- * WizChat API通信类
+ * WizChat_API类 - 处理OpenAI API的通信
  *
  * @package WizChat
  */
@@ -22,12 +22,20 @@ class WizChat_API {
     private $settings;
 
     /**
+     * 是否启用调试
+     *
+     * @var bool
+     */
+    private $debug = false;
+
+    /**
      * 构造函数
      *
      * @param array $settings 插件设置
      */
     public function __construct($settings) {
         $this->settings = $settings;
+        $this->debug = defined('WP_DEBUG') && WP_DEBUG;
     }
 
     /**
@@ -35,19 +43,18 @@ class WizChat_API {
      *
      * @param string $message 用户消息
      * @param array $conversation_history 对话历史
-     * @return array 处理后的响应
-     * @throws Exception 如果API请求失败
+     * @return array 响应数据
+     * @throws Exception 如果请求失败
      */
     public function send_chat_request($message, $conversation_history = array()) {
-        // 检查API密钥是否设置
         if (empty($this->settings['api_key'])) {
-            throw new Exception('API密钥未设置，请在插件设置中配置API密钥。');
+            throw new Exception('API密钥未设置，请在插件设置中配置API密钥');
         }
 
-        // 准备消息格式
+        // 准备发送的消息
         $messages = $this->prepare_messages($message, $conversation_history);
 
-        // 准备API请求
+        // 发送API请求
         $response = $this->make_api_request('chat/completions', array(
             'model' => $this->settings['model'],
             'messages' => $messages,
@@ -75,8 +82,13 @@ class WizChat_API {
             'content' => '你是WizChat，一个由OpenAI驱动的WordPress网站智能客服助手。你的任务是友好地回答用户关于网站内容的问题。保持回答简洁专业，如果不确定答案，可以坦诚说明。',
         );
 
-        // 添加历史消息
+        // 添加历史消息（限制对话长度以避免超出token限制）
         if (!empty($conversation_history) && is_array($conversation_history)) {
+            // 如果历史消息太多，只保留最近的10条
+            if (count($conversation_history) > 10) {
+                $conversation_history = array_slice($conversation_history, -10);
+            }
+            
             foreach ($conversation_history as $entry) {
                 if (isset($entry['role']) && isset($entry['content'])) {
                     $messages[] = array(
@@ -105,11 +117,22 @@ class WizChat_API {
      */
     private function process_response($response) {
         if (isset($response['error'])) {
-            throw new Exception('API错误: ' . $response['error']['message']);
+            $error_message = isset($response['error']['message']) ? $response['error']['message'] : '未知API错误';
+            $error_type = isset($response['error']['type']) ? $response['error']['type'] : '未知';
+            $error_code = isset($response['error']['code']) ? $response['error']['code'] : '';
+            
+            $this->log_debug('API错误响应', array(
+                'message' => $error_message,
+                'type' => $error_type,
+                'code' => $error_code
+            ));
+            
+            throw new Exception('API错误: ' . $error_message);
         }
 
         if (!isset($response['choices'][0]['message']['content'])) {
-            throw new Exception('无效的API响应');
+            $this->log_debug('无效的API响应格式', $response);
+            throw new Exception('无效的API响应: 缺少内容字段');
         }
 
         return array(
@@ -127,7 +150,7 @@ class WizChat_API {
      * @throws Exception 如果请求失败
      */
     private function make_api_request($endpoint, $data) {
-        $api_url = trailingslashit($this->settings['base_url']) . $endpoint;
+        $api_url = rtrim($this->settings['base_url'], '/') . '/' . $endpoint;
         
         $args = array(
             'timeout' => 30,
@@ -137,12 +160,14 @@ class WizChat_API {
             ),
             'body' => wp_json_encode($data),
             'method' => 'POST',
+            'data_format' => 'body',
         );
 
         // 添加调试日志
         $this->log_debug('API请求', array(
             'url' => $api_url,
-            'data' => $data,
+            'endpoint' => $endpoint,
+            'model' => isset($data['model']) ? $data['model'] : 'N/A',
         ));
 
         $response = wp_remote_request($api_url, $args);
@@ -150,6 +175,7 @@ class WizChat_API {
         if (is_wp_error($response)) {
             $this->log_debug('API请求失败', array(
                 'error' => $response->get_error_message(),
+                'code' => $response->get_error_code(),
             ));
             throw new Exception('API请求失败: ' . $response->get_error_message());
         }
@@ -157,12 +183,22 @@ class WizChat_API {
         $body = wp_remote_retrieve_body($response);
         $status = wp_remote_retrieve_response_code($response);
 
-        if ($status !== 200) {
+        if ($status < 200 || $status >= 300) {
             $this->log_debug('API请求返回非200状态码', array(
                 'status' => $status,
                 'body' => $body,
+                'headers' => wp_remote_retrieve_headers($response),
             ));
-            throw new Exception('API请求返回错误状态码: ' . $status);
+            
+            // 尝试从响应中获取更详细的错误信息
+            $error_message = '状态码: ' . $status;
+            $decoded_body = json_decode($body, true);
+            
+            if (json_last_error() === JSON_ERROR_NONE && isset($decoded_body['error']['message'])) {
+                $error_message .= ' - ' . $decoded_body['error']['message'];
+            }
+            
+            throw new Exception('API请求返回错误: ' . $error_message);
         }
 
         $decoded_body = json_decode($body, true);
@@ -170,13 +206,13 @@ class WizChat_API {
         if (json_last_error() !== JSON_ERROR_NONE) {
             $this->log_debug('API响应JSON解析失败', array(
                 'error' => json_last_error_msg(),
-                'body' => $body,
+                'body' => substr($body, 0, 1000), // 记录部分响应内容，避免日志过大
             ));
             throw new Exception('无法解析API响应: ' . json_last_error_msg());
         }
 
         $this->log_debug('API响应成功', array(
-            'response' => $decoded_body,
+            'status' => $status,
         ));
 
         return $decoded_body;
@@ -194,24 +230,50 @@ class WizChat_API {
             throw new Exception('API密钥未设置');
         }
 
-        // 发送简单的模型列表请求来测试连接
+        // 发送简单的聊天完成请求来测试连接
+        // 使用经典的"Hello, World"测试OpenAI API模型
         try {
-            $response = $this->make_api_request('models', array());
-            return isset($response['data']) && is_array($response['data']);
+            $test_data = array(
+                'model' => $this->settings['model'],
+                'messages' => array(
+                    array(
+                        'role' => 'user',
+                        'content' => 'Say "Hello, WizChat API test successful!"',
+                    ),
+                ),
+                'max_tokens' => 20,
+            );
+            
+            $response = $this->make_api_request('chat/completions', $test_data);
+            
+            // 验证响应格式
+            if (!isset($response['choices'][0]['message']['content'])) {
+                throw new Exception('API响应格式无效，请检查API版本和权限');
+            }
+            
+            return true;
         } catch (Exception $e) {
+            // 重新抛出异常，但提供更友好的错误信息
             throw new Exception('API连接测试失败: ' . $e->getMessage());
         }
     }
 
     /**
-     * 记录调试信息（如果启用）
+     * 记录调试信息
      *
      * @param string $title 日志标题
-     * @param mixed $data 要记录的数据
+     * @param mixed $data 日志数据
      */
     private function log_debug($title, $data) {
-        if (defined('WP_DEBUG') && WP_DEBUG) {
-            error_log('WizChat调试 - ' . $title . ': ' . wp_json_encode($data));
+        if (!$this->debug) {
+            return;
         }
+
+        // 使用WordPress的错误日志功能记录调试信息
+        error_log(sprintf(
+            '[WizChat Debug] %s: %s',
+            $title,
+            is_array($data) || is_object($data) ? wp_json_encode($data) : $data
+        ));
     }
 }
