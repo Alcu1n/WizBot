@@ -36,6 +36,12 @@ class WizChat_API {
     public function __construct($settings) {
         $this->settings = $settings;
         $this->debug = defined('WP_DEBUG') && WP_DEBUG;
+        
+        // 处理自定义模型
+        if (isset($this->settings['model']) && $this->settings['model'] === 'custom' && 
+            isset($this->settings['custom_model']) && !empty($this->settings['custom_model'])) {
+            $this->settings['model'] = $this->settings['custom_model'];
+        }
     }
 
     /**

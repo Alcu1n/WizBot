@@ -145,9 +145,9 @@ class WizChat {
     }
 
     /**
-     * 验证API连接
-     * 
-     * @param WP_REST_Request $request REST请求对象
+     * 验证API连接的REST端点回调
+     *
+     * @param WP_REST_Request $request 请求对象
      * @return WP_REST_Response
      */
     public function verify_api_connection($request) {
@@ -167,12 +167,19 @@ class WizChat {
         $base_url = isset($params['base_url']) ? sanitize_text_field($params['base_url']) : '';
         $model = isset($params['model']) ? sanitize_text_field($params['model']) : 'gpt-3.5-turbo';
         
+        // 检查是否有自定义模型
+        $custom_model = '';
+        if (isset($params['custom_model']) && !empty($params['custom_model'])) {
+            $custom_model = sanitize_text_field($params['custom_model']);
+        }
+        
         try {
             // 初始化API实例
             $api = new WizChat_API(array(
                 'api_key' => $api_key,
                 'base_url' => $base_url,
-                'model' => $model
+                'model' => $model,
+                'custom_model' => $custom_model
             ));
             
             // 测试连接

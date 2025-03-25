@@ -185,19 +185,59 @@ class WizChat_Admin {
      */
     public function model_field_callback() {
         $model = isset($this->settings['model']) ? $this->settings['model'] : 'gpt-4o';
+        $custom_model = isset($this->settings['custom_model']) ? $this->settings['custom_model'] : '';
+        
+        // 预定义的模型列表
         $models = array(
             'gpt-4o' => 'GPT-4o',
             'gpt-4o-mini' => 'GPT-4o-mini',
             'gpt-3.5-turbo' => 'GPT-3.5-turbo',
             'gpt-4' => 'GPT-4',
+            'gpt-4-turbo' => 'GPT-4-turbo',
+            'gpt-4-vision-preview' => 'GPT-4-vision',
+            'custom' => '自定义模型'
         );
+        
+        // 检查当前模型是否在预定义列表中，如果不在，设置为自定义
+        $is_custom = !array_key_exists($model, $models) && $model !== 'custom';
+        if ($is_custom) {
+            $custom_model = $model;
+            $model = 'custom';
+        }
         ?>
-        <select name="wizchat_settings[model]">
-            <?php foreach ($models as $key => $label) : ?>
-                <option value="<?php echo esc_attr($key); ?>" <?php selected($model, $key); ?>><?php echo esc_html($label); ?></option>
-            <?php endforeach; ?>
-        </select>
-        <p class="description">选择使用的AI模型</p>
+        <div class="wizchat-model-selection">
+            <select name="wizchat_settings[model]" id="wizchat-model-select">
+                <?php foreach ($models as $key => $label) : ?>
+                    <option value="<?php echo esc_attr($key); ?>" <?php selected($model, $key); ?>><?php echo esc_html($label); ?></option>
+                <?php endforeach; ?>
+            </select>
+            
+            <div id="wizchat-custom-model-container" style="margin-top: 10px; <?php echo $model !== 'custom' ? 'display:none;' : ''; ?>">
+                <input 
+                    type="text" 
+                    name="wizchat_settings[custom_model]" 
+                    id="wizchat-custom-model" 
+                    value="<?php echo esc_attr($custom_model); ?>" 
+                    placeholder="输入自定义模型名称，例如：gpt-4-1106-preview" 
+                    class="regular-text"
+                >
+            </div>
+            
+            <p class="description">选择使用的AI模型或输入自定义模型名称</p>
+        </div>
+        
+        <script>
+            jQuery(document).ready(function($) {
+                // 处理模型选择变化
+                $('#wizchat-model-select').on('change', function() {
+                    if ($(this).val() === 'custom') {
+                        $('#wizchat-custom-model-container').show();
+                    } else {
+                        $('#wizchat-custom-model-container').hide();
+                    }
+                });
+            });
+        </script>
         <?php
     }
 
@@ -273,6 +313,11 @@ class WizChat_Admin {
         // 模型
         if (isset($input['model'])) {
             $sanitized['model'] = sanitize_text_field($input['model']);
+        }
+        
+        // 自定义模型
+        if (isset($input['custom_model'])) {
+            $sanitized['custom_model'] = sanitize_text_field($input['custom_model']);
         }
         
         // 气泡位置

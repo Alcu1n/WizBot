@@ -24,7 +24,19 @@
         // 获取当前表单中的API设置
         const apiKey = $('input[name="wizchat_settings[api_key]"]').val();
         const baseUrl = $('input[name="wizchat_settings[base_url]"]').val();
-        const model = $('select[name="wizchat_settings[model]"]').val();
+        const modelSelect = $('select[name="wizchat_settings[model]"]').val();
+        
+        // 处理自定义模型
+        let model = modelSelect;
+        if (modelSelect === 'custom') {
+            const customModel = $('input[name="wizchat_settings[custom_model]"]').val();
+            if (customModel) {
+                model = customModel;
+            } else {
+                $result.html('<span style="color: red;">请输入自定义模型名称</span>');
+                return;
+            }
+        }
         
         // 检查API密钥是否设置
         if (!apiKey) {
