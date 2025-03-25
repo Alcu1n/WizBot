@@ -67,20 +67,29 @@ register_deactivation_hook(__FILE__, 'wizchat_deactivate');
  * 加载插件的类文件
  */
 function wizchat_load_classes() {
-    // 包含核心类
+    // 包含所有核心类
     require_once WIZCHAT_PLUGIN_DIR . 'includes/class-wizchat.php';
-}
-add_action('plugins_loaded', 'wizchat_load_classes');
-
-/**
- * 插件主要实例化函数
- */
-function wizchat_init() {
-    if (class_exists('WizChat')) {
-        return WizChat::get_instance();
+    require_once WIZCHAT_PLUGIN_DIR . 'includes/class-wizchat-admin.php';
+    require_once WIZCHAT_PLUGIN_DIR . 'includes/class-wizchat-public.php';
+    require_once WIZCHAT_PLUGIN_DIR . 'includes/class-wizchat-api.php';
+    
+    // 初始化主类
+    $wizchat = WizChat::get_instance();
+    
+    // 如果是管理界面，初始化管理类
+    if (is_admin()) {
+        $settings = get_option('wizchat_settings', array());
+        $admin = new WizChat_Admin($settings);
     }
-    return null;
 }
 
-// 初始化插件
-$GLOBALS['wizchat'] = wizchat_init();
+// 使用WordPress的初始化钩子加载插件
+add_action('init', 'wizchat_load_classes');
+
+// 添加设置链接到插件页面
+function wizchat_add_settings_link($links) {
+    $settings_link = '<a href="options-general.php?page=wizchat-settings">' . __('设置', 'wizchat') . '</a>';
+    array_unshift($links, $settings_link);
+    return $links;
+}
+add_filter('plugin_action_links_' . WIZCHAT_PLUGIN_BASENAME, 'wizchat_add_settings_link');
