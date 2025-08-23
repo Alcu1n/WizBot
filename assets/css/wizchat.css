@@ -4,24 +4,102 @@
  * 自定义样式，用于补充TailwindCSS不能直接提供的效果
  */
 
+/* 定义CSS变量用于主题颜色和渐变 */
+:root {
+    --wizchat-primary-color: #6c5ce7;
+    --wizchat-secondary-color: #a29bfe;
+    --wizchat-gradient-start: #6c5ce7;
+    --wizchat-gradient-end: #8e44ad;
+    --wizchat-dark-bg: #1e1e2e;
+    --wizchat-dark-surface: #2d2d3d;
+    --wizchat-light-text: #f8f8f8;
+    --wizchat-gray-text: #a0a0b8;
+    --wizchat-user-bubble: linear-gradient(135deg, #6c5ce7 0%, #8e44ad 100%);
+    --wizchat-ai-bubble: #2d2d3d;
+    --wizchat-input-bg: #3a3a4d;
+}
+
 /* 聊天窗口基础样式 */
 .wizchat-container {
     font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
 }
 
-/* 聊天气泡过渡效果 */
+/* 深色主题样式 */
+.wizchat-chat-window {
+    background-color: var(--wizchat-dark-bg);
+    color: var(--wizchat-light-text);
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
+    border-radius: 16px;
+    overflow: hidden;
+    height: 650px !important; /* 进一步增加高度 */
+    position: fixed !important; /* 确保绝对定位 */
+    z-index: 9999 !important; /* 确保在最上层 */
+}
+
+/* 修复定位问题 */
+#wizchat-chat-window {
+    position: fixed !important;
+    bottom: 5rem !important;
+    right: 1rem !important;
+}
+
+/* 消息容器样式 */
+#wizchat-messages-container {
+    background-color: var(--wizchat-dark-bg);
+    position: absolute;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    left: 0;
+    overflow: hidden;
+}
+
+/* 消息区域样式 */
+.wizchat-messages {
+    height: 100%;
+    overflow-y: auto;
+    scrollbar-width: thin;
+    scrollbar-color: rgba(255, 255, 255, 0.15) var(--wizchat-dark-bg);
+    padding-top: 70px; /* 为header留出空间 */
+    padding-bottom: 70px; /* 为input区域留出空间 */
+}
+
+/* 现代化聊天气泡设计 */
 .wizchat-bubble {
     transition: transform 0.3s ease, box-shadow 0.3s ease;
+    border-radius: 18px !important;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+    font-size: 0.9rem; /* 减小字体大小 */
+}
+
+.wizchat-bubble p {
+    line-height: 1.4;
+    margin: 0;
 }
 
 .wizchat-bubble:hover {
-    transform: scale(1.05);
-    box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+    transform: translateY(-2px);
+    box-shadow: 0 6px 16px rgba(0, 0, 0, 0.25);
+}
+
+/* 用户消息气泡样式 */
+.wizchat-message-user .wizchat-bubble {
+    background: var(--wizchat-user-bubble);
+    color: white;
+    border-radius: 18px 18px 0 18px !important;
+}
+
+/* AI消息气泡样式 */
+.wizchat-message-ai .wizchat-bubble {
+    background-color: var(--wizchat-ai-bubble);
+    color: var(--wizchat-light-text);
+    border-radius: 18px 18px 18px 0 !important;
 }
 
 /* 消息动画效果 */
 .wizchat-message {
     animation: wizchat-fade-in 0.3s ease;
+    font-size: 0.9rem; /* 减小字体大小 */
 }
 
 @keyframes wizchat-fade-in {
@@ -49,17 +127,106 @@
     100% { content: ""; }
 }
 
-/* 按钮和输入框焦点状态 */
-.wizchat-input-area input:focus {
-    outline: none;
-    border-color: transparent;
-    box-shadow: 0 0 0 2px rgba(79, 70, 229, 0.3);
+/* 真正的毛玻璃效果标题栏 */
+.wizchat-header {
+    background: rgba(108, 92, 231, 0.4); /* 使用非常透明的背景 */
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    padding: 16px !important;
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    z-index: 10;
+    border-radius: 16px 16px 0 0;
+    border: none; /* 确保没有边框 */
+    height: 70px; /* 修复定位问题 */
 }
 
-/* 链接样式 */
-.wizchat-bubble a {
-    text-decoration: underline;
-    transition: color 0.2s;
+/* 添加顶部渐变叠加效果，但保持透明度 */
+.wizchat-header::before {
+    content: "";
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 100%;
+    background: linear-gradient(135deg, rgba(108, 92, 231, 0.3), rgba(142, 68, 173, 0.2));
+    border-radius: 16px 16px 0 0;
+    z-index: -1;
+    pointer-events: none;
+}
+
+/* 真正的毛玻璃效果输入区域 */
+.wizchat-input-area {
+    background: rgba(46, 46, 66, 0.4); /* 使用非常透明的背景 */
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    padding: 16px !important;
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    z-index: 10;
+    border: none; /* 确保没有边框 */
+    height: 70px; /* 修复定位问题 */
+}
+
+/* 添加底部渐变叠加效果，但保持透明度 */
+.wizchat-input-area::before {
+    content: "";
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    height: 100%;
+    background: linear-gradient(135deg, rgba(108, 92, 231, 0.2), rgba(142, 68, 173, 0.1));
+    z-index: -1;
+    pointer-events: none;
+}
+
+.wizchat-input-area input {
+    background-color: rgba(58, 58, 77, 0.5);
+    backdrop-filter: blur(5px);
+    -webkit-backdrop-filter: blur(5px);
+    color: var(--wizchat-light-text);
+    border: none;
+    border-radius: 24px !important;
+    padding: 12px 16px !important;
+    font-size: 0.9rem;
+}
+
+.wizchat-input-area input::placeholder {
+    color: var(--wizchat-gray-text);
+}
+
+.wizchat-input-area input:focus {
+    outline: none;
+    box-shadow: 0 0 0 2px rgba(108, 92, 231, 0.5);
+}
+
+.wizchat-input-area button {
+    background: linear-gradient(135deg, var(--wizchat-gradient-start) 0%, var(--wizchat-gradient-end) 100%);
+    border-radius: 50% !important;
+    padding: 10px !important;
+    margin-left: 8px;
+    height: 42px;
+    width: 42px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: transform 0.2s ease;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+}
+
+.wizchat-input-area button:hover {
+    transform: scale(1.05);
+    box-shadow: 0 2px 15px rgba(108, 92, 231, 0.3);
+}
+
+.wizchat-input-area form {
+    display: flex;
+    align-items: center;
 }
 
 /* 滚动条美化 */
@@ -68,61 +235,16 @@
 }
 
 .wizchat-messages::-webkit-scrollbar-track {
-    background: #f1f1f1;
-    border-radius: 3px;
+    background: var(--wizchat-dark-bg);
 }
 
 .wizchat-messages::-webkit-scrollbar-thumb {
-    background: #ddd;
+    background: rgba(255, 255, 255, 0.15);
     border-radius: 3px;
 }
 
 .wizchat-messages::-webkit-scrollbar-thumb:hover {
-    background: #ccc;
-}
-
-/* 用户消息样式 */
-.wizchat-message-user .wizchat-bubble {
-    border-radius: 18px 18px 0 18px;
-}
-
-/* AI消息样式 */
-.wizchat-message-ai .wizchat-bubble {
-    border-radius: 18px 18px 18px 0;
-}
-
-/* 响应式调整 */
-@media (max-width: 640px) {
-    #wizchat-chat-window {
-        width: calc(100% - 32px);
-        max-width: 100%;
-        left: 16px;
-        right: 16px;
-    }
-    
-    .wizchat-message .wizchat-bubble {
-        max-width: 80%;
-    }
-}
-
-/* 隐藏元素 */
-.hidden {
-    display: none !important;
-}
-
-/* 主题颜色 */
-.wizchat-primary-bg {
-    background-color: var(--wizchat-primary-color, #4F46E5);
-    color: white;
-}
-
-.wizchat-primary-text {
-    color: var(--wizchat-primary-color, #4F46E5);
-}
-
-/* 阴影效果 */
-.wizchat-shadow {
-    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+    background: rgba(255, 255, 255, 0.25);
 }
 
 /* 聊天气泡按钮 */
@@ -133,57 +255,76 @@
     width: 60px;
     height: 60px;
     border-radius: 50%;
+    background: linear-gradient(135deg, var(--wizchat-gradient-start) 0%, var(--wizchat-gradient-end) 100%);
     display: flex;
     align-items: center;
     justify-content: center;
     cursor: pointer;
     z-index: 9998;
     transition: all 0.3s ease;
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.2);
 }
 
-.wizchat-bubble-btn svg {
-    width: 30px;
-    height: 30px;
-    color: white;
+.wizchat-bubble-btn:hover {
+    transform: scale(1.05) rotate(5deg);
+    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.25);
 }
 
-/* 聊天窗口 */
-.wizchat-window {
-    position: fixed;
-    bottom: 24px;
-    right: 24px;
-    width: 350px;
-    height: 500px;
-    border-radius: 12px;
-    overflow: hidden;
-    display: flex;
-    flex-direction: column;
-    background-color: white;
-    z-index: 9999;
+/* 头像样式美化 */
+.wizchat-avatar {
+    background: linear-gradient(135deg, var(--wizchat-gradient-start) 0%, var(--wizchat-gradient-end) 100%);
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
 }
 
-/* 聊天窗口头部 */
-.wizchat-header {
-    padding: 12px 16px;
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
+/* 底部版权信息 */
+.wizchat-footer {
+    background-color: rgba(30, 30, 46, 0.4);
+    backdrop-filter: blur(5px);
+    -webkit-backdrop-filter: blur(5px);
+    color: var(--wizchat-gray-text);
+    border: none;
+    padding: 5px;
+    font-size: 0.7rem;
+    text-align: center;
+    position: absolute;
+    bottom: 70px; /* 放在输入框上方 */
+    left: 0;
+    right: 0;
+    z-index: 5;
 }
 
-.wizchat-title {
-    color: white;
-    font-size: 16px;
+.wizchat-footer a {
+    color: var(--wizchat-secondary-color);
+    text-decoration: none;
 }
 
-.wizchat-close {
-    cursor: pointer;
-    width: 24px;
-    height: 24px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
+.wizchat-footer a:hover {
+    text-decoration: underline;
 }
 
-.wizchat-close svg {
-    color: white;
+/* 错误消息样式 */
+.wizchat-error {
+    color: #ff6b6b;
+    padding: 8px 12px;
+    font-size: 0.8rem;
+    background-color: rgba(255, 107, 107, 0.1);
+    border-radius: 4px;
+    margin: 0 12px 12px;
+    position: relative;
+    z-index: 20;
+}
+
+/* 响应式调整 */
+@media (max-width: 640px) {
+    .wizchat-chat-window {
+        width: calc(100% - 32px);
+        max-width: 100%;
+        left: 16px;
+        right: 16px;
+        height: 75vh !important;
+    }
+    
+    .wizchat-message .wizchat-bubble {
+        max-width: 80%;
+    }
 }
